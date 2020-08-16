@@ -309,10 +309,10 @@ instrumentForDynamicCount(Module &m)
 
   // Build up all of the passes that we want to run on the module.
   //TODO: Add your passmanager here
-  // legacy::PassManager pm;
-  // pm.add(new callcounter::DynamicCallCounter());
-  // pm.add(createVerifierPass());
-  // pm.run(m);
+  legacy::PassManager pm;
+  pm.add(new helpers::LabelUID());
+  pm.add(createVerifierPass());
+  pm.run(m);
 
   // Run instrumentation pass on desired function
   for (auto &f : m)

@@ -74,7 +74,7 @@ namespace helpers
         auto &Context = BB.getContext();
         MDNode *N =
             MDNode::get(Context, MDString::get(Context, to_string(values[&BB])));
-        BB.getTerminator()->setMetadata("BB_UID", N);
+        BB.getTerminator()->setMetadata("UID", N);
     }
 
     bool LabelUID::runOnFunction(Function &F)

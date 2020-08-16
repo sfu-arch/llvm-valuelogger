@@ -12,9 +12,13 @@ using namespace std;
 #include "helpers.h"
 #include <map>
 
-value_store getValue(void *ptr, vty typ) {
+std::ofstream instruction_stream("instruction_stream.inst");
+
+value_store getValue(void *ptr, vty typ)
+{
   value_store v;
-  switch (typ) {
+  switch (typ)
+  {
   case FLT:
     v.f32 = *((float *)ptr);
     break;
@@ -60,7 +64,8 @@ FILE *fp_succ = 0;
 FILE *fp_mlog = 0;
 
 extern "C" void __attribute__((__noinline__))
-__InstruMem_load(void *ptr, uint64_t size, vty typ) {
+__InstruMem_load(void *ptr, uint64_t size, vty typ, uint64_t id)
+{
   asm("");
   uint32_t addr_val = reinterpret_cast<intptr_t>(ptr);
   Address addr(addr_val);
@@ -71,7 +76,8 @@ __InstruMem_load(void *ptr, uint64_t size, vty typ) {
   entry *directoryentry = InitMap.lookup(addr);
 
   ///* Check if memory already initialized */
-  if (!directoryentry) {
+  if (!directoryentry)
+  {
     entry *new_entry = new entry();
     InitMap.add(addr, new_entry);
     directoryentry = new_entry;
@@ -80,18 +86,29 @@ __InstruMem_load(void *ptr, uint64_t size, vty typ) {
   /* Overwrite address */
   directoryentry->address = addr.getLineAddress();
   /* Write the bytes of the memory if not already initialized */
-  for (size_t i = 0; i < size; i++) {
+  for (size_t i = 0; i < size; i++)
+  {
     /* If already logged. don't log again */
-    if (!directoryentry->flag[offset + i]) {
+    if (!directoryentry->flag[offset + i])
+    {
       value_store val(ptr, typ);
       directoryentry->flag.set(offset + i, 1);
       directoryentry->m_bytes[offset + i] = val.m_bytes[i];
     }
   }
+
+  //Print to instruction stream
+  std::stringstream addr_stream;
+  addr_stream << std::hex << addr_val;
+  std::string addr_str(addr_stream.str());
+  instruction_stream << "[ID: " << id << "]"
+                     << " [LOAD] "
+                     << "[Address: 0X" << addr_str << "]\n";
 }
 
 extern "C" void __attribute__((__noinline__))
-__InstruMem_store(char *ptr, uint64_t size, vty typ) {
+__InstruMem_store(char *ptr, uint64_t size, vty typ, uint64_t id)
+{
   asm("");
   uint32_t addr_val = reinterpret_cast<intptr_t>(ptr);
   Address addr(addr_val);
@@ -104,7 +121,8 @@ __InstruMem_store(char *ptr, uint64_t size, vty typ) {
   entry *directoryentry = FinalMap.lookup(addr);
 
   ///* Check if memory already initialized */
-  if (!directoryentry) {
+  if (!directoryentry)
+  {
     entry *new_entry = new entry();
     FinalMap.add(addr, new_entry);
     directoryentry = new_entry;
@@ -115,7 +133,8 @@ __InstruMem_store(char *ptr, uint64_t size, vty typ) {
   /* Overwrite address */
   directoryentry->address = addr.getLineAddress();
   /* Write the bytes of the memory if not already initialized */
-  for (size_t i = 0; i < size; i++) {
+  for (size_t i = 0; i < size; i++)
+  {
     // Always update   if (!directoryentry->flag[offset + i])
     {
       value_store val(ptr, typ);
@@ -123,8 +142,17 @@ __InstruMem_store(char *ptr, uint64_t size, vty typ) {
       directoryentry->m_bytes[offset + i] = val.m_bytes[i];
     }
   }
+
+  //Print to instruction stream
+  std::stringstream addr_stream;
+  addr_stream << std::hex << addr_val;
+  std::string addr_str(addr_stream.str());
+  instruction_stream << "[ID: " << id << "]"
+                     << " [STORE] "
+                     << "[Address: 0X" << addr_str << "]\n";
 }
-void PrintVal(uint64_t *val, vty t) {
+void PrintVal(uint64_t *val, vty t)
+{
   void *valptr = (void *)val;
 
   if (t == FLT)
@@ -146,7 +174,8 @@ void PrintVal(uint64_t *val, vty t) {
 }
 
 extern "C" void __attribute__((__noinline__))
-__PrintArg(char *ptr, uint64_t no, vty typ) {
+__PrintArg(char *ptr, uint64_t no, vty typ)
+{
   asm("");
   value_store val((uint64_t *)ptr, typ);
   ArgRet += "Arg" + to_string(no) + ":";
@@ -158,7 +187,8 @@ __PrintArg(char *ptr, uint64_t no, vty typ) {
 
 } //__PrintArg
 
-extern "C" void __attribute__((__noinline__)) __PrintRet(char *ptr, vty typ) {
+extern "C" void __attribute__((__noinline__)) __PrintRet(char *ptr, vty typ)
+{
   asm("");
   value_store val((void *)ptr, typ);
   ArgRet += "Ret:";
@@ -168,7 +198,8 @@ extern "C" void __attribute__((__noinline__)) __PrintRet(char *ptr, vty typ) {
   ArgRet += "\n";
 } //__PrintRet
 
-extern "C" void __attribute__((__noinline__)) __Fini() {
+extern "C" void __attribute__((__noinline__)) __Fini()
+{
   asm("");
   ofstream Argsfile;
   Argsfile.open("Args.mem");

@@ -21,9 +21,7 @@ bool InstruMemPass::runOnFunction(Function &f)
 {
 
     F = &f;
-
     visit(f);
-
     return true;
 }
 
@@ -40,11 +38,11 @@ void InstruMemPass::visitFunction(Function &f)
 
     onLoad =
         m->getOrInsertFunction(pre + "load", FunctionType::get(
-                                                 voidTy, {i8PtrTy, i64Ty, i64Ty}, false))
+                                                 voidTy, {i8PtrTy, i64Ty, i64Ty, i64Ty}, false))
             .getCallee();
     onStore =
         m->getOrInsertFunction(pre + "store", FunctionType::get(
-                                                  voidTy, {i8PtrTy, i64Ty, i64Ty}, false))
+                                                  voidTy, {i8PtrTy, i64Ty, i64Ty, i64Ty}, false))
             .getCallee();
 
     onFini =
@@ -71,12 +69,16 @@ void InstruMemPass::visitLoadInst(LoadInst &li)
     Value *loaded = li.getPointerOperand();
     BitCastInst *bc = new BitCastInst(loaded, i8PtrTy, "", &li);
 
+    auto id_value = getUID(li);
+
     if (!li.isTerminator())
     {
 
         auto DL = li.getModule()->getDataLayout();
         auto Sz = DL.getTypeStoreSize(cast<PointerType>(li.getPointerOperand()->getType())->getElementType());
-        Value *args[] = {bc, ConstantInt::get(i64Ty, Sz), ConstantInt::get(i64Ty, GetTypeEnum(&li))};
+        Value *args[] = {bc, ConstantInt::get(i64Ty, Sz),
+                         ConstantInt::get(i64Ty, GetTypeEnum(&li)), 
+                         ConstantInt::get(i64Ty, id_value)};
 
         CallInst::Create(onLoad, args)->insertAfter(&li);
     } // load NOT at end of BB
@@ -93,12 +95,16 @@ void InstruMemPass::visitStoreInst(StoreInst &si)
     Value *stored = si.getPointerOperand();
     BitCastInst *bc = new BitCastInst(stored, i8PtrTy, "", &si);
 
+    auto id_value = getUID(si);
+
     if (!si.isTerminator())
     {
 
         auto DL = si.getModule()->getDataLayout();
         auto Sz = DL.getTypeStoreSize(cast<PointerType>(si.getPointerOperand()->getType())->getElementType());
-        Value *args[] = {bc, ConstantInt::get(i64Ty, Sz), ConstantInt::get(i64Ty, GetTypeEnum(si.getValueOperand()))};
+        Value *args[] = {bc, ConstantInt::get(i64Ty, Sz),
+                         ConstantInt::get(i64Ty, GetTypeEnum(si.getValueOperand())),
+                         ConstantInt::get(i64Ty, id_value)};
 
         CallInst::Create(onStore, args)->insertAfter(&si);
     } // store NOT at end of BB

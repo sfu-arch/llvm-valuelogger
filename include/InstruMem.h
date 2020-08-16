@@ -11,6 +11,8 @@
 #include "llvm/Support/raw_ostream.h"
 #include "../lib/value-rt/helpers.h"
 
+#include "Common.h"
+
 using namespace llvm;
 
 namespace instrumem
@@ -23,18 +25,22 @@ namespace instrumem
     private:
         const std::string pre = "__InstruMem_";
 
+        uint32_t getUID(Instruction &I)
+        {
+            auto *N = I.getMetadata("UID");
+            auto *S = dyn_cast<MDString>(N->getOperand(0));
+            return stoi(S->getString().str());
+        };
+
     public:
         static char ID;
         llvm::Function *F = nullptr;
-
-        // int loadId = 0;
-        // int storeId = 0;
 
         InstruMemPass();
 
         virtual void getAnalysisUsage(AnalysisUsage &AU) const override
         {
-            // AU.addRequired<DataLayoutPass>();
+            AU.addRequired<helpers::LabelUID>();
         }
 
         bool runOnFunction(llvm::Function &f) override;
@@ -46,11 +52,11 @@ namespace instrumem
         llvm::Type *fTy = nullptr;
         llvm::Type *dTy = nullptr;
 
-        llvm::Value* onLoad = nullptr;
-        llvm::Value* onStore = nullptr;
-        llvm::Value* onFini = nullptr;
-        llvm::Value* onArg = nullptr;
-        llvm::Value* onRet = nullptr;
+        llvm::Value *onLoad = nullptr;
+        llvm::Value *onStore = nullptr;
+        llvm::Value *onFini = nullptr;
+        llvm::Value *onArg = nullptr;
+        llvm::Value *onRet = nullptr;
 
         void visitLoadInst(LoadInst &li);
         void visitStoreInst(StoreInst &si);
