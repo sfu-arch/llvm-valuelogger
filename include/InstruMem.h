@@ -11,51 +11,55 @@
 #include "llvm/Support/raw_ostream.h"
 #include "../lib/value-rt/helpers.h"
 
-
-
 using namespace llvm;
 
-namespace instrumem {
+namespace instrumem
+{
 
-struct InstruMemPass : public llvm::FunctionPass,
-                       llvm::InstVisitor<InstruMemPass> {
+    struct InstruMemPass : public llvm::FunctionPass,
+                           llvm::InstVisitor<InstruMemPass>
+    {
 
-    static char ID;
-    llvm::Function* F = nullptr;
+    private:
+        const std::string pre = "__InstruMem_";
 
-    // int loadId = 0;
-    // int storeId = 0;
+    public:
+        static char ID;
+        llvm::Function *F = nullptr;
 
-    InstruMemPass();
+        // int loadId = 0;
+        // int storeId = 0;
 
-    virtual void getAnalysisUsage(AnalysisUsage &AU) const override {
-        // AU.addRequired<DataLayoutPass>();
-    }
+        InstruMemPass();
 
-    bool runOnFunction(llvm::Function &f) override;
+        virtual void getAnalysisUsage(AnalysisUsage &AU) const override
+        {
+            // AU.addRequired<DataLayoutPass>();
+        }
 
+        bool runOnFunction(llvm::Function &f) override;
 
-    llvm::Type *i8PtrTy = nullptr;
+        llvm::Type *i8PtrTy = nullptr;
 
-    llvm::Type *voidTy = nullptr;
-    llvm::Type *i64Ty  = nullptr;
-    llvm::Type *fTy    = nullptr;
-    llvm::Type *dTy    = nullptr;
+        llvm::Type *voidTy = nullptr;
+        llvm::Type *i64Ty = nullptr;
+        llvm::Type *fTy = nullptr;
+        llvm::Type *dTy = nullptr;
 
-    llvm::Constant *onLoad = nullptr;
-    llvm::Constant *onStore = nullptr;
-    llvm::Constant *onFini = nullptr;
-    llvm::Constant *onArg = nullptr;
-    llvm::Constant *onRet = nullptr;
+        llvm::Value* onLoad = nullptr;
+        llvm::Value* onStore = nullptr;
+        llvm::Value* onFini = nullptr;
+        llvm::Value* onArg = nullptr;
+        llvm::Value* onRet = nullptr;
 
-    void visitLoadInst(LoadInst &li);
-    void visitStoreInst(StoreInst &si);
-    void visitReturnInst (ReturnInst &I);
+        void visitLoadInst(LoadInst &li);
+        void visitStoreInst(StoreInst &si);
+        void visitReturnInst(ReturnInst &I);
 
-    void visitFunction(Function &f);
+        void visitFunction(Function &f);
 
-    int GetTypeEnum (llvm::Value*);
-};
+        int GetTypeEnum(llvm::Value *);
+    };
 
 } // namespace instrumem
 

@@ -4,7 +4,7 @@
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/AsmParser/Parser.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
-#include "llvm/CodeGen/CommandFlags.def"
+#include "llvm/CodeGen/CommandFlags.inc"
 #include "llvm/CodeGen/LinkAllAsmWriterComponents.h"
 #include "llvm/CodeGen/LinkAllCodegenComponents.h"
 #include "llvm/IR/DataLayout.h"
@@ -96,17 +96,20 @@ static cl::list<string> libraries{"l",
                                   cl::value_desc{"library prefix"},
                                   cl::cat{tracerCategory}};
 
-static void compile(Module &m, StringRef outputPath) {
+static void compile(Module &m, StringRef outputPath)
+{
   string err;
 
   Triple triple = Triple(m.getTargetTriple());
   Target const *target = TargetRegistry::lookupTarget(MArch, triple, err);
-  if (!target) {
+  if (!target)
+  {
     report_fatal_error("Unable to find target:\n " + err);
   }
 
   CodeGenOpt::Level level = CodeGenOpt::Default;
-  switch (optLevel) {
+  switch (optLevel)
+  {
   default:
     report_fatal_error("Invalid optimization level.\n");
   // No fall through
@@ -131,14 +134,16 @@ static void compile(Module &m, StringRef outputPath) {
       CMModel.getValue(), level));
   assert(machine && "Could not allocate target machine!");
 
-  if (FloatABIForCalls != FloatABI::Default) {
+  if (FloatABIForCalls != FloatABI::Default)
+  {
     options.FloatABIType = FloatABIForCalls;
   }
 
   std::error_code errc;
   auto out =
       std::make_unique<ToolOutputFile>(outputPath, errc, sys::fs::F_None);
-  if (!out) {
+  if (!out)
+  {
     report_fatal_error("Unable to create file:\n " + errc.message());
   }
 
@@ -156,13 +161,15 @@ static void compile(Module &m, StringRef outputPath) {
 
     FileType = TargetMachine::CGFT_ObjectFile;
     std::unique_ptr<buffer_ostream> bos;
-    if (!out->os().supportsSeeking()) {
+    if (!out->os().supportsSeeking())
+    {
       bos = std::make_unique<buffer_ostream>(*os);
       os = bos.get();
     }
 
     // Ask the target to add backend passes as necessary.
-    if (machine->addPassesToEmitFile(pm, *os, FileType)) {
+    if (machine->addPassesToEmitFile(pm, *os, nullptr, FileType))
+    {
       report_fatal_error("target does not support generation "
                          "of this file type!\n");
     }
@@ -177,7 +184,8 @@ static void compile(Module &m, StringRef outputPath) {
   out->keep();
 }
 
-static void link(StringRef objectFile, StringRef outputFile) {
+static void link(StringRef objectFile, StringRef outputFile)
+{
   auto clang = findProgramByName("clang++");
   string opt("-O");
   opt += optLevel;
@@ -185,40 +193,53 @@ static void link(StringRef objectFile, StringRef outputFile) {
   //string machbit("-m");
   //machbit += machLevel;
 
-  if (!clang) {
+  if (!clang)
+  {
     report_fatal_error("Unable to find clang.");
   }
 
   vector<string> args{clang.get(), opt, "-o", outputFile, objectFile};
 
-  for (auto &libPath : libPaths) {
+  for (auto &libPath : libPaths)
+  {
     args.push_back("-L" + libPath);
   }
 
-  for (auto &library : libraries) {
+  for (auto &library : libraries)
+  {
     args.push_back("-l" + library);
   }
 
-  vector<char const *> charArgs;
-  charArgs.reserve(args.size() + 1);
-  for (auto &arg : args) {
-    charArgs.push_back(arg.c_str());
+  vector<llvm::StringRef> charArgs;
+  charArgs.reserve(args.size());
+  for (auto &arg : args)
+  {
+    charArgs.emplace_back(arg);
   }
-  charArgs.push_back(nullptr);
 
-  for (auto &arg : args) {
+  for (auto &arg : args)
+  {
     outs() << arg.c_str() << " ";
   }
   outs() << "\n";
 
   string err;
-  if (-1 ==
-      ExecuteAndWait(clang.get(), &charArgs[0], nullptr, {}, 0, 0, &err)) {
+  auto result = ExecuteAndWait(
+      clang.get(),
+      llvm::makeArrayRef(charArgs),
+      llvm::NoneType::None,
+      {},
+      0,
+      0,
+      &err);
+  if (-1 == result)
+  {
     report_fatal_error("Unable to link output file.");
   }
 }
 
-static void generateBinary(Module &m, StringRef outputFilename) {
+static void generateBinary(Module &m, StringRef outputFilename)
+{
   // Compiling to native should allow things to keep working even when the
   // version of clang on the system and the version of LLVM used to compile
   // the tool don't quite match up.
@@ -227,22 +248,26 @@ static void generateBinary(Module &m, StringRef outputFilename) {
   link(objectFile, outputFilename);
 }
 
-static void saveModule(Module const &m, StringRef filename) {
+static void saveModule(Module const &m, StringRef filename)
+{
   std::error_code errc;
   raw_fd_ostream out(filename.data(), errc, sys::fs::F_None);
 
-  if (errc) {
+  if (errc)
+  {
     report_fatal_error("error saving llvm module to '" + filename + "': \n" +
                        errc.message());
   }
-  WriteBitcodeToFile(&m, out);
+  WriteBitcodeToFile(m, out);
 }
 
-static void prepareLinkingPaths(SmallString<32> invocationPath) {
+static void prepareLinkingPaths(SmallString<32> invocationPath)
+{
   // First search the directory of the binary for the library, in case it is
   // all bundled together.
   sys::path::remove_filename(invocationPath);
-  if (!invocationPath.empty()) {
+  if (!invocationPath.empty())
+  {
     libPaths.push_back(invocationPath.str());
   }
 // If the builder doesn't plan on installing it, we still need to get to the
@@ -266,21 +291,25 @@ static void prepareLinkingPaths(SmallString<32> invocationPath) {
   // libraries.push_back("rt");
 }
 
-static void instrumentForDynamicCount(Module &m) {
+static void instrumentForDynamicCount(Module &m)
+{
   InitializeAllTargets();
   InitializeAllTargetMCs();
   InitializeAllAsmPrinters();
   InitializeAllAsmParsers();
   cl::AddExtraVersionPrinter(TargetRegistry::printRegisteredTargetsForVersion);
 
-  if (outFile.getValue().empty()) {
+  if (outFile.getValue().empty())
+  {
     errs() << "-o command line option must be specified.\n";
     exit(-1);
   }
 
   // Run instrumentation pass on desired function
-  for (auto &f : m) {
-    if (f.getName() == functionName.getValue()) {
+  for (auto &f : m)
+  {
+    if (f.getName() == functionName.getValue())
+    {
       legacy::FunctionPassManager fpm(f.getParent());
       fpm.add(new instrumem::InstruMemPass());
       fpm.doInitialization();
@@ -329,7 +358,8 @@ static void instrumentForDynamicCount(Module &m) {
 // pm.run(m);
 //}
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv)
+{
   // This boilerplate provides convenient stack traces and clean LLVM exit
   // handling. It also initializes the built in support for convenient
   // command line option handling.
@@ -344,7 +374,8 @@ int main(int argc, char **argv) {
   LLVMContext context;
   unique_ptr<Module> module = parseIRFile(inPath.getValue(), err, context);
 
-  if (!module.get()) {
+  if (!module.get())
+  {
     errs() << "Error reading bitcode file: " << inPath << "\n";
     err.print(argv[0], errs());
     return -1;
