@@ -1,0 +1,10 @@
+IF(DEBUG)
+    ADD_DEFINITIONS(-DDEBUG_MEM)
+ENDIF(DEBUG)
+IF(M32)
+    add_compile_options("-m32")
+ENDIF(M32)
+add_library(value-rt
+    helpers.cpp
+    runtime.cpp
+)
