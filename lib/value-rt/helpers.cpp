@@ -98,12 +98,39 @@ __InstruMem_load(void *ptr, uint64_t size, vty typ, uint64_t id)
   }
 
   //Print to instruction stream
+  // std::cout << value << "\n";
+  value_store val(ptr, typ);
   std::stringstream addr_stream;
   addr_stream << std::hex << addr_val;
   std::string addr_str(addr_stream.str());
-  instruction_stream << "[ID: " << id << "]"
-                     << " [LOAD] "
-                     << "[Address: 0X" << addr_str << "]\n";
+
+  switch (typ)
+  {
+  case WHL:
+    instruction_stream << "[ID: " << id << "]"
+                       << " [LOAD] "
+                       << "[Address: 0X" << addr_str << "] [Value: " << val.i32 << "]\n";
+    break;
+  case LNG:
+    instruction_stream << "[ID: " << id << "]"
+                       << " [LOAD] "
+                       << "[Address: 0X" << addr_str << "] [Value: " << val.i64 << "]\n";
+    break;
+  case FLT:
+    instruction_stream << "[ID: " << id << "]"
+                       << " [LOAD] "
+                       << "[Address: 0X" << addr_str << "] [Value: " << val.f32 << "]\n";
+    break;
+  case DBL:
+    instruction_stream << "[ID: " << id << "]"
+                       << " [LOAD] "
+                       << "[Address: 0X" << addr_str << "] [Value: " << val.d64 << "]\n";
+    break;
+  default:
+    instruction_stream << "[ID: " << id << "]"
+                       << " [LOAD] "
+                       << "[Address: 0X" << addr_str << "] [Value: UKNOWN FORMAT]\n";    break;
+  }
 }
 
 extern "C" void __attribute__((__noinline__))

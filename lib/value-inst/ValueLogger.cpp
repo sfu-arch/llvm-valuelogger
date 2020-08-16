@@ -67,7 +67,9 @@ void InstruMemPass::visitLoadInst(LoadInst &li)
     auto *i64Ty = Type::getInt64Ty(li.getContext());
 
     Value *loaded = li.getPointerOperand();
-    BitCastInst *bc = new BitCastInst(loaded, i8PtrTy, "", &li);
+    BitCastInst *bc = new BitCastInst(loaded, i8PtrTy, "", &li); 
+
+    // llvm::CastInst *val = new llvm::SExtInst(&li, i64Ty, "");
 
     auto id_value = getUID(li);
 
