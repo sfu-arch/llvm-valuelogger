@@ -1,6 +1,5 @@
-
-#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/Triple.h"
+#include "llvm/ADT/SmallString.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/AsmParser/Parser.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
@@ -10,20 +9,20 @@
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/IRPrintingPasses.h"
 #include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Linker/Linker.h"
 #include "llvm/MC/SubtargetFeature.h"
+#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileUtilities.h"
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/Host.h"
 #include "llvm/Support/ManagedStatic.h"
-#include "llvm/Support/Path.h"
 #include "llvm/Support/PrettyStackTrace.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/SourceMgr.h"
@@ -42,108 +41,109 @@
 #include "config.h"
 
 using namespace llvm;
-using llvm::legacy::PassManager;
-using llvm::sys::ExecuteAndWait;
-using llvm::sys::findProgramByName;
 using std::string;
 using std::unique_ptr;
 using std::vector;
+using llvm::sys::ExecuteAndWait;
+using llvm::sys::findProgramByName;
+using llvm::legacy::PassManager;
 
-static cl::OptionCategory tracerCategory{"tracer options"};
+
+enum class AnalysisType {
+  STATIC,
+  DYNAMIC,
+};
+
+
+static cl::OptionCategory muIRDebugCategory{"call counter options"};
 
 static cl::opt<string> inPath{cl::Positional,
                               cl::desc{"<Module to analyze>"},
                               cl::value_desc{"bitcode filename"},
                               cl::init(""),
                               cl::Required,
-                              cl::cat{tracerCategory}};
+                              cl::cat{muIRDebugCategory}};
 
-static cl::opt<string> functionName{"fn-name",
-                                    cl::desc{"<Function name to instrument>"},
-                                    cl::value_desc{"function name"},
-                                    cl::init(""),
-                                    cl::Required,
-                                    cl::cat{tracerCategory}};
+// static cl::opt<AnalysisType> analysisType{
+//     cl::desc{"Select analyis type:"},
+//     cl::values(clEnumValN(AnalysisType::STATIC,
+//                           "static",
+//                           "Count static direct calls."),
+//                clEnumValN(AnalysisType::DYNAMIC,
+//                           "dynamic",
+//                           "Count dynamic direct calls.")
+//                ),
+//     cl::Required,
+//     cl::cat{muIRDebugCategory}};
 
-static cl::opt<string> outFile{
-    "o", cl::desc{"Filename of the instrumented program"},
-    cl::value_desc{"filename"}, cl::init(""), cl::cat{tracerCategory}};
+static cl::opt<string> outFile{"o",
+                               cl::desc{"Filename of the instrumented program"},
+                               cl::value_desc{"filename"},
+                               cl::init(""),
+                               cl::cat{muIRDebugCategory}};
 
 static cl::opt<char> optLevel{
     "O",
     cl::desc{"Optimization level. [-O0, -O1, -O2, or -O3] (default = '-O2')"},
     cl::Prefix,
     cl::ZeroOrMore,
-    cl::init('1'),
-    cl::cat{tracerCategory}};
+    cl::init('2'),
+    cl::cat{muIRDebugCategory}};
 
-static cl::opt<string> machLevel{
-    "m",
-    cl::desc{"Machine 32/64bit (default = '-m64')"},
-    cl::Prefix,
-    cl::ZeroOrMore,
-    cl::init("64"),
-    cl::cat{tracerCategory}};
-
-static cl::list<string> libPaths{
-    "L", cl::Prefix, cl::desc{"Specify a library search path"},
-    cl::value_desc{"directory"}, cl::cat{tracerCategory}};
+static cl::list<string> libPaths{"L",
+                                 cl::Prefix,
+                                 cl::desc{"Specify a library search path"},
+                                 cl::value_desc{"directory"},
+                                 cl::cat{muIRDebugCategory}};
 
 static cl::list<string> libraries{"l",
                                   cl::Prefix,
-                                  cl::ZeroOrMore,
                                   cl::desc{"Specify libraries to link against"},
                                   cl::value_desc{"library prefix"},
-                                  cl::cat{tracerCategory}};
+                                  cl::cat{muIRDebugCategory}};
 
-static void compile(Module &m, StringRef outputPath)
-{
+
+static void
+compile(Module& m, StringRef outputPath) {
   string err;
 
-  Triple triple = Triple(m.getTargetTriple());
-  Target const *target = TargetRegistry::lookupTarget(MArch, triple, err);
-  if (!target)
-  {
+  Triple triple        = Triple(m.getTargetTriple());
+  Target const* target = TargetRegistry::lookupTarget(MArch, triple, err);
+  if (!target) {
     report_fatal_error("Unable to find target:\n " + err);
   }
 
   CodeGenOpt::Level level = CodeGenOpt::Default;
-  switch (optLevel)
-  {
-  default:
-    report_fatal_error("Invalid optimization level.\n");
-  // No fall through
-  case '0':
-    level = CodeGenOpt::None;
-    break;
-  case '1':
-    level = CodeGenOpt::Less;
-    break;
-  case '2':
-    level = CodeGenOpt::Default;
-    break;
-  case '3':
-    level = CodeGenOpt::Aggressive;
-    break;
+  switch (optLevel) {
+    default:
+      report_fatal_error("Invalid optimization level.\n");
+    // No fall through
+    case '0': level = CodeGenOpt::None; break;
+    case '1': level = CodeGenOpt::Less; break;
+    case '2': level = CodeGenOpt::Default; break;
+    case '3': level = CodeGenOpt::Aggressive; break;
   }
 
   string FeaturesStr;
   TargetOptions options = InitTargetOptionsFromCodeGenFlags();
-  unique_ptr<TargetMachine> machine(target->createTargetMachine(
-      triple.getTriple(), MCPU, FeaturesStr, options, getRelocModel(),
-      CMModel.getValue(), level));
+  unique_ptr<TargetMachine> machine(
+      target->createTargetMachine(triple.getTriple(),
+                                  MCPU,
+                                  FeaturesStr,
+                                  options,
+                                  getRelocModel(),
+                                  llvm::NoneType::None,
+                                  level));
   assert(machine && "Could not allocate target machine!");
 
-  if (FloatABIForCalls != FloatABI::Default)
-  {
+  if (FloatABIForCalls != FloatABI::Default) {
     options.FloatABIType = FloatABIForCalls;
   }
 
   std::error_code errc;
   auto out =
       std::make_unique<ToolOutputFile>(outputPath, errc, sys::fs::F_None);
-  if (!out)
-  {
+  if (!out) {
     report_fatal_error("Unable to create file:\n " + errc.message());
   }
 
@@ -156,20 +156,18 @@ static void compile(Module &m, StringRef outputPath)
 
   m.setDataLayout(machine->createDataLayout());
 
-  { // Bound this scope
-    raw_pwrite_stream *os(&out->os());
+  {  // Bound this scope
+    raw_pwrite_stream* os(&out->os());
 
     FileType = TargetMachine::CGFT_ObjectFile;
     std::unique_ptr<buffer_ostream> bos;
-    if (!out->os().supportsSeeking())
-    {
+    if (!out->os().supportsSeeking()) {
       bos = std::make_unique<buffer_ostream>(*os);
-      os = bos.get();
+      os  = bos.get();
     }
 
     // Ask the target to add backend passes as necessary.
-    if (machine->addPassesToEmitFile(pm, *os, nullptr, FileType))
-    {
+    if (machine->addPassesToEmitFile(pm, *os, nullptr, FileType)) {
       report_fatal_error("target does not support generation "
                          "of this file type!\n");
     }
@@ -184,41 +182,33 @@ static void compile(Module &m, StringRef outputPath)
   out->keep();
 }
 
-static void link(StringRef objectFile, StringRef outputFile)
-{
+
+static void
+link(StringRef objectFile, StringRef outputFile) {
   auto clang = findProgramByName("clang++");
   string opt("-O");
   opt += optLevel;
 
-  //string machbit("-m");
-  //machbit += machLevel;
-
-  if (!clang)
-  {
+  if (!clang) {
     report_fatal_error("Unable to find clang.");
   }
-
   vector<string> args{clang.get(), opt, "-o", outputFile, objectFile};
 
-  for (auto &libPath : libPaths)
-  {
+  for (auto& libPath : libPaths) {
     args.push_back("-L" + libPath);
   }
 
-  for (auto &library : libraries)
-  {
+  for (auto& library : libraries) {
     args.push_back("-l" + library);
   }
 
   vector<llvm::StringRef> charArgs;
   charArgs.reserve(args.size());
-  for (auto &arg : args)
-  {
+  for (auto& arg : args) {
     charArgs.emplace_back(arg);
   }
 
-  for (auto &arg : args)
-  {
+  for (auto& arg : args) {
     outs() << arg.c_str() << " ";
   }
   outs() << "\n";
@@ -231,15 +221,16 @@ static void link(StringRef objectFile, StringRef outputFile)
       {},
       0,
       0,
-      &err);
-  if (-1 == result)
-  {
+      &err
+    );
+  if (-1 == result) {
     report_fatal_error("Unable to link output file.");
   }
 }
 
-static void generateBinary(Module &m, StringRef outputFilename)
-{
+
+static void
+generateBinary(Module& m, StringRef outputFilename) {
   // Compiling to native should allow things to keep working even when the
   // version of clang on the system and the version of LLVM used to compile
   // the tool don't quite match up.
@@ -248,26 +239,26 @@ static void generateBinary(Module &m, StringRef outputFilename)
   link(objectFile, outputFilename);
 }
 
-static void saveModule(Module const &m, StringRef filename)
-{
+
+static void
+saveModule(Module const& m, StringRef filename) {
   std::error_code errc;
   raw_fd_ostream out(filename.data(), errc, sys::fs::F_None);
 
-  if (errc)
-  {
-    report_fatal_error("error saving llvm module to '" + filename + "': \n" +
-                       errc.message());
+  if (errc) {
+    report_fatal_error("error saving llvm module to '" + filename + "': \n"
+                       + errc.message());
   }
   WriteBitcodeToFile(m, out);
 }
 
-static void prepareLinkingPaths(SmallString<32> invocationPath)
-{
+
+static void
+prepareLinkingPaths(SmallString<32> invocationPath) {
   // First search the directory of the binary for the library, in case it is
   // all bundled together.
   sys::path::remove_filename(invocationPath);
-  if (!invocationPath.empty())
-  {
+  if (!invocationPath.empty()) {
     libPaths.push_back(invocationPath.str());
   }
 // If the builder doesn't plan on installing it, we still need to get to the
@@ -283,90 +274,77 @@ static void prepareLinkingPaths(SmallString<32> invocationPath)
   libPaths.push_back(TEMP_LIBRARY_PATH "/Debug/lib/");
   libPaths.push_back(TEMP_LIBRARY_PATH "/Release/lib/");
 #endif
-
-#ifndef __APPLE__
-// libraries.push_back("-undefined dynamic_lookup");
-#endif
   libraries.push_back(RUNTIME_LIB);
-  // libraries.push_back("rt");
+  libraries.push_back("rt");
 }
 
-static void instrumentForDynamicCount(Module &m)
-{
+
+static void
+instrumentForDynamicCount(Module& m) {
   InitializeAllTargets();
   InitializeAllTargetMCs();
   InitializeAllAsmPrinters();
   InitializeAllAsmParsers();
   cl::AddExtraVersionPrinter(TargetRegistry::printRegisteredTargetsForVersion);
 
-  if (outFile.getValue().empty())
-  {
+  if (outFile.getValue().empty()) {
     errs() << "-o command line option must be specified.\n";
     exit(-1);
   }
 
-  // Run instrumentation pass on desired function
-  for (auto &f : m)
-  {
-    if (f.getName() == functionName.getValue())
-    {
-      legacy::FunctionPassManager fpm(f.getParent());
-      fpm.add(new instrumem::InstruMemPass());
-      fpm.doInitialization();
-      fpm.run(f);
-      fpm.doFinalization();
-    }
-  }
-
   // Build up all of the passes that we want to run on the module.
+  //TODO: Add your passmanager here
   // legacy::PassManager pm;
-  // pm.add(new instrumem::);
+  // pm.add(new callcounter::DynamicCallCounter());
   // pm.add(createVerifierPass());
   // pm.run(m);
 
   generateBinary(m, outFile);
-  saveModule(m, outFile + ".value.bc");
+  saveModule(m, outFile + ".callcounter.bc");
 }
 
+
 // struct StaticCountPrinter : public ModulePass {
-// static char ID;
-// raw_ostream& out;
+//   static char ID;
+//   raw_ostream& out;
 
-// explicit StaticCountPrinter(raw_ostream& out) : ModulePass(ID), out(out) {}
+//   explicit StaticCountPrinter(raw_ostream& out) : ModulePass(ID), out(out) {}
 
-// bool
-// runOnModule(Module& m) override {
-// getAnalysis<callcounter::StaticCallCounter>().print(out, &m);
-// return false;
-//}
+//   bool
+//   runOnModule(Module& m) override {
+//     getAnalysis<callcounter::StaticCallCounter>().print(out, &m);
+//     return false;
+//   }
 
-// void
-// getAnalysisUsage(AnalysisUsage& au) const override {
-// au.addRequired<callcounter::StaticCallCounter>();
-// au.setPreservesAll();
-//}
-//};
+//   void
+//   getAnalysisUsage(AnalysisUsage& au) const override {
+//     au.addRequired<callcounter::StaticCallCounter>();
+//     au.setPreservesAll();
+//   }
+// };
 
 // char StaticCountPrinter::ID = 0;
 
+
 // static void
 // countStaticCalls(Module& m) {
-//// Build up all of the passes that we want to run on the module.
-// legacy::PassManager pm;
-// pm.add(new callcounter::StaticCallCounter());
-// pm.add(new StaticCountPrinter(outs()));
-// pm.run(m);
-//}
+//   // Build up all of the passes that we want to run on the module.
+//   legacy::PassManager pm;
+//   pm.add(new callcounter::StaticCallCounter());
+//   pm.add(new StaticCountPrinter(outs()));
+//   pm.run(m);
+// }
 
-int main(int argc, char **argv)
-{
+
+int
+main(int argc, char** argv) {
   // This boilerplate provides convenient stack traces and clean LLVM exit
   // handling. It also initializes the built in support for convenient
   // command line option handling.
   sys::PrintStackTraceOnErrorSignal(argv[0]);
   llvm::PrettyStackTraceProgram X(argc, argv);
   llvm_shutdown_obj shutdown;
-  cl::HideUnrelatedOptions(tracerCategory);
+  cl::HideUnrelatedOptions(muIRDebugCategory);
   cl::ParseCommandLineOptions(argc, argv);
 
   // Construct an IR file from the filename passed on the command line.
@@ -374,15 +352,18 @@ int main(int argc, char **argv)
   LLVMContext context;
   unique_ptr<Module> module = parseIRFile(inPath.getValue(), err, context);
 
-  if (!module.get())
-  {
+  if (!module.get()) {
     errs() << "Error reading bitcode file: " << inPath << "\n";
     err.print(argv[0], errs());
     return -1;
   }
 
-  prepareLinkingPaths(StringRef(argv[0]));
-  instrumentForDynamicCount(*module);
+  // if (AnalysisType::DYNAMIC == analysisType) {
+    prepareLinkingPaths(StringRef(argv[0]));
+    instrumentForDynamicCount(*module);
+  // } else {
+  //   countStaticCalls(*module);
+  // }
 
   return 0;
 }

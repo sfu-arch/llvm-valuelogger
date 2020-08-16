@@ -40,7 +40,7 @@ Running
 
 First suppose that you have a program compiled to bitcode:
 
-    clang -O1 -g -c -emit-llvm ../ValueLogger/test/matmul/matmul.c -o matmul.bc
+    clang -O1 -g -c -emit-llvm ../ValueLogger/tests/matmul/matmul.cpp -o matmul.bc
 
 Running the instrumenter:
 
