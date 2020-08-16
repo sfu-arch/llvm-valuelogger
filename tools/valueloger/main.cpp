@@ -331,36 +331,6 @@ instrumentForDynamicCount(Module &m)
   saveModule(m, outFile + ".valinstrumenter.bc");
 }
 
-// struct StaticCountPrinter : public ModulePass {
-//   static char ID;
-//   raw_ostream& out;
-
-//   explicit StaticCountPrinter(raw_ostream& out) : ModulePass(ID), out(out) {}
-
-//   bool
-//   runOnModule(Module& m) override {
-//     getAnalysis<callcounter::StaticCallCounter>().print(out, &m);
-//     return false;
-//   }
-
-//   void
-//   getAnalysisUsage(AnalysisUsage& au) const override {
-//     au.addRequired<callcounter::StaticCallCounter>();
-//     au.setPreservesAll();
-//   }
-// };
-
-// char StaticCountPrinter::ID = 0;
-
-// static void
-// countStaticCalls(Module& m) {
-//   // Build up all of the passes that we want to run on the module.
-//   legacy::PassManager pm;
-//   pm.add(new callcounter::StaticCallCounter());
-//   pm.add(new StaticCountPrinter(outs()));
-//   pm.run(m);
-// }
-
 int main(int argc, char **argv)
 {
   // This boilerplate provides convenient stack traces and clean LLVM exit

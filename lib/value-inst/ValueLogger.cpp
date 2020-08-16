@@ -66,8 +66,6 @@ void InstruMemPass::visitFunction(Function &f)
 void InstruMemPass::visitLoadInst(LoadInst &li)
 {
 
-    //int loadId = 0;
-
     auto *i64Ty = Type::getInt64Ty(li.getContext());
 
     Value *loaded = li.getPointerOperand();
