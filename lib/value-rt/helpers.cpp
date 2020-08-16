@@ -63,6 +63,26 @@ FILE *fp_out = 0;
 FILE *fp_succ = 0;
 FILE *fp_mlog = 0;
 
+
+
+extern "C" void __attribute__((__noinline__))
+__InstruMem_binaryi32(uint32_t value, uint64_t id)
+{
+  asm("");
+    instruction_stream << "[ID: " << id << "]"
+                       << " [BINARY] "
+                       << "[Value: " << value << "]\n";
+}
+
+extern "C" void __attribute__((__noinline__))
+__InstruMem_binaryi64(uint64_t value, uint64_t id)
+{
+  asm("");
+    instruction_stream << "[ID: " << id << "]"
+                       << " [BINARY] "
+                       << "[Value: " << value << "]\n";
+}
+
 extern "C" void __attribute__((__noinline__))
 __InstruMem_load(void *ptr, uint64_t size, vty typ, uint64_t id)
 {

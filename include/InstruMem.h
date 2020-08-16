@@ -49,8 +49,12 @@ namespace instrumem
 
         llvm::Type *voidTy = nullptr;
         llvm::Type *i64Ty = nullptr;
+        llvm::Type *i32Ty = nullptr;
         llvm::Type *fTy = nullptr;
         llvm::Type *dTy = nullptr;
+
+        llvm::Value *onBinaryOpi32 = nullptr;
+        llvm::Value *onBinaryOpi64 = nullptr;
 
         llvm::Value *onLoad = nullptr;
         llvm::Value *onStore = nullptr;
@@ -58,6 +62,7 @@ namespace instrumem
         llvm::Value *onArg = nullptr;
         llvm::Value *onRet = nullptr;
 
+        void visitBinaryOperator(BinaryOperator &ins);
         void visitLoadInst(LoadInst &li);
         void visitStoreInst(StoreInst &si);
         void visitReturnInst(ReturnInst &I);

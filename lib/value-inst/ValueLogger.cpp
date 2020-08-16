@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "InstruMem.h"
+#include "llvm/IR/IRBuilder.h"
 
 using namespace instrumem;
 
@@ -19,7 +20,6 @@ InstruMemPass::InstruMemPass() : FunctionPass(ID) {} // InstruMemPass
 
 bool InstruMemPass::runOnFunction(Function &f)
 {
-
     F = &f;
     visit(f);
     return true;
@@ -32,9 +32,18 @@ void InstruMemPass::visitFunction(Function &f)
 
     voidTy = Type::getVoidTy(m->getContext());
     i64Ty = Type::getInt64Ty(m->getContext());
+    i32Ty = Type::getInt32Ty(m->getContext());
     i8PtrTy = Type::getInt8PtrTy(m->getContext());
     fTy = Type::getFloatTy(m->getContext());
     dTy = Type::getDoubleTy(m->getContext());
+
+    onBinaryOpi32 = m->getOrInsertFunction(pre + "binaryi32", FunctionType::get(
+                                                                  voidTy, {i32Ty, i64Ty}, false))
+                        .getCallee();
+
+    onBinaryOpi64 = m->getOrInsertFunction(pre + "binaryi32", FunctionType::get(
+                                                                  voidTy, {i64Ty, i64Ty}, false))
+                        .getCallee();
 
     onLoad =
         m->getOrInsertFunction(pre + "load", FunctionType::get(
@@ -61,13 +70,43 @@ void InstruMemPass::visitFunction(Function &f)
             .getCallee();
 }
 
+void InstruMemPass::visitBinaryOperator(BinaryOperator &ins)
+{
+
+    auto *i64Ty = Type::getInt64Ty(ins.getContext());
+    auto *i32Ty = Type::getInt32Ty(ins.getContext());
+
+    auto id_value = getUID(ins);
+
+    if (ins.getType() == i32Ty)
+    {
+        if (!ins.isTerminator())
+        {
+
+            auto DL = ins.getModule()->getDataLayout();
+            Value *args[] = {&ins, ConstantInt::get(i64Ty, GetTypeEnum(&ins))};
+
+            CallInst::Create(onBinaryOpi32, args)->insertAfter(&ins);
+
+        } // load NOT at end of BB
+    }
+    else if (ins.getType() == i64Ty)
+    {
+
+        auto DL = ins.getModule()->getDataLayout();
+        Value *args[] = {&ins, ConstantInt::get(i64Ty, GetTypeEnum(&ins))};
+
+        CallInst::Create(onBinaryOpi64, args)->insertAfter(&ins);
+    }
+}
+
 void InstruMemPass::visitLoadInst(LoadInst &li)
 {
 
     auto *i64Ty = Type::getInt64Ty(li.getContext());
 
     Value *loaded = li.getPointerOperand();
-    BitCastInst *bc = new BitCastInst(loaded, i8PtrTy, "", &li); 
+    BitCastInst *bc = new BitCastInst(loaded, i8PtrTy, "", &li);
 
     // llvm::CastInst *val = new llvm::SExtInst(&li, i64Ty, "");
 
@@ -79,7 +118,7 @@ void InstruMemPass::visitLoadInst(LoadInst &li)
         auto DL = li.getModule()->getDataLayout();
         auto Sz = DL.getTypeStoreSize(cast<PointerType>(li.getPointerOperand()->getType())->getElementType());
         Value *args[] = {bc, ConstantInt::get(i64Ty, Sz),
-                         ConstantInt::get(i64Ty, GetTypeEnum(&li)), 
+                         ConstantInt::get(i64Ty, GetTypeEnum(&li)),
                          ConstantInt::get(i64Ty, id_value)};
 
         CallInst::Create(onLoad, args)->insertAfter(&li);
