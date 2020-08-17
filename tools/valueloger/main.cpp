@@ -32,6 +32,12 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/Scalar.h"
+#include "llvm/Analysis/BasicAliasAnalysis.h"
+#include "llvm/Analysis/CallGraph.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
+#include "llvm/Analysis/TypeBasedAliasAnalysis.h"
+
+#include "LoopExtractor.h"
 
 #include <memory>
 #include <string>
@@ -292,6 +298,70 @@ prepareLinkingPaths(SmallString<32> invocationPath)
   libraries.push_back("rt");
 }
 
+
+static void
+labeling(Module &m)
+{
+  InitializeAllTargets();
+  InitializeAllTargetMCs();
+  InitializeAllAsmPrinters();
+  InitializeAllAsmParsers();
+  cl::AddExtraVersionPrinter(TargetRegistry::printRegisteredTargetsForVersion);
+
+  if (outFile.getValue().empty())
+  {
+    errs() << "-o command line option must be specified.\n";
+    exit(-1);
+  }
+
+  // Build up all of the passes that we want to run on the module.
+  //TODO: Add your passmanager here
+  legacy::PassManager pm;
+  pm.add(new helpers::LabelUID());
+  pm.add(createVerifierPass());
+  pm.run(m);
+
+}
+
+
+static void
+loopExtraction(Module &m)
+{
+  InitializeAllTargets();
+  InitializeAllTargetMCs();
+  InitializeAllAsmPrinters();
+  InitializeAllAsmParsers();
+  cl::AddExtraVersionPrinter(TargetRegistry::printRegisteredTargetsForVersion);
+
+  if (outFile.getValue().empty())
+  {
+    errs() << "-o command line option must be specified.\n";
+    exit(-1);
+  }
+
+  // Build up all of the passes that we want to run on the module.
+  //TODO: Add your passmanager here
+  legacy::PassManager pm;
+  pm.add(new helpers::LabelUID());
+  // pm.add(createVerifierPass());
+  // pm.run(m);
+        // AU.addRequired<llvm::ScalarEvolutionWrapperPass>();
+
+
+  pm.add(new llvm::AssumptionCacheTracker());
+  pm.add(llvm::createBasicAAWrapperPass());
+  pm.add(createTypeBasedAAWrapperPass());
+  pm.add(createBreakCriticalEdgesPass());
+  pm.add(createLoopSimplifyPass());
+  pm.add(new DominatorTreeWrapperPass());
+  pm.add(new LoopInfoWrapperPass());
+  pm.add(new ScalarEvolutionWrapperPass());
+  pm.add(new lx::TargetLoopExtractor());
+  pm.add(createVerifierPass());
+  pm.run(m);
+
+}
+
 static void
 instrumentForDynamicCount(Module &m)
 {
@@ -311,6 +381,20 @@ instrumentForDynamicCount(Module &m)
   //TODO: Add your passmanager here
   legacy::PassManager pm;
   pm.add(new helpers::LabelUID());
+  // pm.add(createVerifierPass());
+  // pm.run(m);
+        // AU.addRequired<llvm::ScalarEvolutionWrapperPass>();
+
+
+  pm.add(new llvm::AssumptionCacheTracker());
+  pm.add(llvm::createBasicAAWrapperPass());
+  pm.add(createTypeBasedAAWrapperPass());
+  pm.add(createBreakCriticalEdgesPass());
+  pm.add(createLoopSimplifyPass());
+  pm.add(new DominatorTreeWrapperPass());
+  pm.add(new LoopInfoWrapperPass());
+  pm.add(new ScalarEvolutionWrapperPass());
+  pm.add(new lx::TargetLoopExtractor());
   pm.add(createVerifierPass());
   pm.run(m);
 
@@ -356,6 +440,8 @@ int main(int argc, char **argv)
 
   // if (AnalysisType::DYNAMIC == analysisType) {
   prepareLinkingPaths(StringRef(argv[0]));
+  labeling(*module);
+  loopExtraction(*module);
   instrumentForDynamicCount(*module);
   // } else {
   //   countStaticCalls(*module);
