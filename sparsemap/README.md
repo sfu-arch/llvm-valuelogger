@@ -32,13 +32,10 @@ S.add(A,a);
 ret = S.lookup(A);
   if (a != NULL)
       S.add(A,a)
-      ````
+````
 
 ### Unit test and Usage
 To understand usage, see main.cc.
-
-
-
 
 
 ```
