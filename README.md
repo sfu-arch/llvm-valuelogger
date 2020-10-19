@@ -1,4 +1,5 @@
-# LLVM Value Logger
+LLVM Value Logger
+====================
 
 
 This program instruments a function and dump args, initial and final state of memory. This essentially creates a closure and enables the function to be blackboxed and run independent of the program (e.g., on an FPGA).
